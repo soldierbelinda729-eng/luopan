@@ -36,7 +36,7 @@ jobs:
           keytool -genkeypair -v -keystore luopan.keystore -alias luopan -keyalg RSA -keysize 2048 -validity 10000 -storepass mingli2026 -keypass mingli2026 -dname "CN=Luopan, OU=mingli, O=mingli, L=Beijing, ST=Beijing, C=CN"
           echo '{"android":{"release":{"keystore":"luopan.keystore","storePassword":"mingli2026","alias":"luopan","password":"mingli2026","keystoreType":""}}}' > build.json
           cordova platform add android@13
-          cordova build android --release
+          cordova build android --release -- --packageType=apk
           mkdir -p "$GITHUB_WORKSPACE/output"
           cp platforms/android/app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/output/时空罗盘.apk"
           cp luopan.keystore "$GITHUB_WORKSPACE/output/luopan.keystore"
