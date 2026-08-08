@@ -120,6 +120,18 @@
     </div>
     <div class="hint" id="syncHint">手机与电脑连同一 WiFi；电脑先运行 <b>python sync_server.py</b>。HTTPS 页面（GitHub Pages）提交受浏览器限制时，用"复制报告文本"→ 微信发电脑。</div>
   </div>
+
+  <div class="panel">
+    <h3>🔓 粘贴同步码解码（接收他人/电脑发来的码）</h3>
+    <div class="row">
+      <textarea id="codeInput" rows="2" style="width:100%;background:#0f3460;color:#eee;border:1px solid #533483;border-radius:6px;padding:8px;font-size:12px" placeholder="粘贴 LP1: 开头的同步码，点「解码」"></textarea>
+    </div>
+    <div class="row">
+      <button id="btnDecode">🔓 解码</button>
+      <button id="btnDecodeSync" style="background:#3498db">📤 解码并同步到电脑</button>
+    </div>
+    <div class="readout" id="decodeResult" style="font-size:12px;line-height:1.6;white-space:pre-wrap"></div>
+  </div>
 </div>
 
 <script>
@@ -509,6 +521,37 @@
       try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
       document.body.removeChild(ta);
     }
+  };
+
+  // ---------- 粘贴码解码 ----------
+  function decodeFromInput() {
+    var code = document.getElementById("codeInput").value;
+    var box = document.getElementById("decodeResult");
+    try {
+      var obj = C.decodeSyncCode(code);
+      box.style.color = "#2ecc71";
+      box.textContent = C.syncCodeSummary(obj);
+      return obj;
+    } catch (e) {
+      box.style.color = "#e74c3c";
+      box.textContent = "解码失败: " + e.message + "\n请确认码完整（LP1: 开头、无换行截断）";
+      return null;
+    }
+  }
+  document.getElementById("btnDecode").onclick = function () { decodeFromInput(); };
+  document.getElementById("btnDecodeSync").onclick = function () {
+    var obj = decodeFromInput();
+    if (!obj) return;
+    var ip = document.getElementById("pcIP").value || location.hostname || "127.0.0.1";
+    var port = document.getElementById("pcPort").value || 8000;
+    fetch("http://" + ip + ":" + port + "/api/reading", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(obj)
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      document.getElementById("decodeResult").textContent += "\n✅ 已同步到电脑（共 " + d.total + " 条）";
+    }).catch(function () {
+      document.getElementById("decodeResult").textContent += "\n⚠️ 同步失败：不在同一网络或电脑未开服务器；可复制上面结果发给电脑";
+    });
   };
 })();
 </script>

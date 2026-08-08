@@ -136,11 +136,38 @@
     return { wu_huang: pick(5), er_hei: pick(2), ba_bai: pick(8), si_lv: pick(4) };
   }
 
+  /** 解码同步码（LP1:Base64 → 对象） */
+  function decodeSyncCode(code) {
+    var b64 = String(code || "").replace(/^LP1\s*:/, "").trim();
+    if (!b64) throw new Error("码为空");
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var json = new TextDecoder("utf-8").decode(bytes);
+    var obj = JSON.parse(json);
+    if (!obj || obj.v !== 1) throw new Error("版本不支持");
+    return obj;
+  }
+
+  /** 码解码为人类可读文本（供手机/网页显示） */
+  function syncCodeSummary(obj) {
+    var L = [];
+    L.push("时间: " + (obj.t || ""));
+    L.push("朝向: " + obj.fd + "°  " + obj.zx + (obj.zx ? "" : ""));
+    L.push("二十四山: " + obj.s24 + "  地支: " + obj.zhi + "  八卦: " + obj.gua + "  天干: " + obj.gan);
+    L.push("命卦: " + obj.mg + "(" + obj.mgg + ")  飞星年: " + obj.fy);
+    if (obj.gz) L.push("干支: " + obj.gz + "  农历: " + obj.nl);
+    if (obj.yi) L.push("宜: " + obj.yi);
+    if (obj.ji) L.push("忌: " + obj.ji);
+    return L.join("\n");
+  }
+
   return {
     SHAN24, BAGUA, GAN, ZHI,
     norm, degToShan, degToShanIndex, degToZhi, degToBagua, degToGan,
     facingToZuoxiang, degToDirName,
     younianTable, YOU_NIAN_NAME, YOU_NIAN_COLOR,
     yearCenterStar, annualFlyingStars, flyingHighlights, STAR_NAME,
+    decodeSyncCode, syncCodeSummary,
   };
 });
