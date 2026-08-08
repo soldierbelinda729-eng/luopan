@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>时空罗盘 · 二十四山指南针</title>
+<link rel="manifest" href="pwa/manifest.json">
+<meta name="theme-color" content="#16213e">
+<link rel="apple-touch-icon" href="pwa/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="luopan_core.js"></script>
+<script src="pwa/lunar.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #eee; }
+  header { text-align: center; padding: 10px; background: #16213e; }
+  header h1 { font-size: 18px; color: #f39c12; }
+  header p { font-size: 11px; color: #888; margin-top: 2px; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 10px; }
+  .compass-box { position: relative; text-align: center; }
+  svg { width: 100%; max-width: 520px; touch-action: none; }
+  .readout { background: #16213e; border-radius: 10px; padding: 10px; margin: 8px 0; }
+  .readout .big { font-size: 26px; color: #f39c12; font-weight: bold; }
+  .readout .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 6px; }
+  .readout .cell { background: #0f3460; border-radius: 6px; padding: 6px; text-align: center; }
+  .readout .cell .k { font-size: 10px; color: #888; }
+  .readout .cell .v { font-size: 16px; font-weight: bold; }
+  .panel { background: #16213e; border-radius: 10px; padding: 10px; margin: 8px 0; }
+  .panel h3 { font-size: 13px; color: #f39c12; margin-bottom: 8px; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+  .row label { font-size: 12px; min-width: 70px; color: #aaa; }
+  input, select, button { background: #0f3460; color: #eee; border: 1px solid #533483; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+  button { cursor: pointer; background: #e94560; border: none; font-weight: bold; }
+  button.active { background: #2ecc71; }
+  .legend { font-size: 11px; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 3px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .hint { font-size: 11px; color: #888; margin-top: 6px; }
+  #status { font-size: 12px; color: #2ecc71; }
+  #status.err { color: #e74c3c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧭 时空罗盘 · 二十四山指南针</h1>
+  <p>手机磁力计自动测向 / 电脑手动输入 · 自动分判子丑寅卯·甲乙丙丁·八卦二十四山分布</p>
+</header>
+<div class="wrap">
+  <div class="compass-box">
+    <svg id="luopan" viewBox="0 0 640 640"></svg>
+  </div>
+
+  <div class="readout">
+    <div><span class="big" id="degRead">--°</span>
+      <span id="dirRead" style="font-size:18px;color:#1abc9c"></span>
+      <span id="status" style="margin-left:8px"></span></div>
+    <div class="grid">
+      <div class="cell"><div class="k">坐向</div><div class="v" id="zxRead">--</div></div>
+      <div class="cell"><div class="k">二十四山</div><div class="v" id="shanRead">--</div></div>
+      <div class="cell"><div class="k">地支</div><div class="v" id="zhiRead">--</div></div>
+      <div class="cell"><div class="k">八卦</div><div class="v" id="guaRead">--</div></div>
+      <div class="cell"><div class="k">天干</div><div class="v" id="ganRead">--</div></div>
+      <div class="cell"><div class="k">五行</div><div class="v" id="wxRead">--</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>测向模式</h3>
+    <div class="row">
+      <button id="btnMag" class="active">🧲 磁力计（手机）</button>
+      <button id="btnMan">✋ 手动（电脑）</button>
+      <label>磁偏角修正(°):</label>
+      <input id="decl" type="number" step="0.1" value="0" style="width:70px">
+      <label>手动朝向(°):</label>
+      <input id="manualDeg" type="number" min="0" max="360" step="1" value="0" style="width:70px">
+    </div>
+    <div class="hint" id="magHint">磁力计需 HTTPS 环境（手机浏览器打开 http://电脑IP:8000/luopan.html 或本地 https）。iOS 需 Safari。无磁力计时用手动模式。</div>
+  </div>
+
+  <div class="panel">
+    <h3>宅主命卦（八宅游年吉凶方高亮）</h3>
+    <div class="row">
+      <label>出生年:</label><input id="byear" type="number" value="1985" style="width:80px">
+      <label>性别:</label>
+      <select id="bgender"><option value="male">男</option><option value="female">女</option></select>
+      <span style="font-size:13px;color:#1abc9c" id="mingGuaRead"></span>
+    </div>
+    <div class="legend" id="younianLegend"></div>
+  </div>
+
+  <div class="panel">
+    <h3>玄空飞星年盘（高亮）</h3>
+    <div class="row">
+      <label>年份:</label><input id="fyear" type="number" value="2026" style="width:80px">
+    </div>
+    <div class="hint" id="flyingHint"></div>
+  </div>
+
+  <div class="panel">
+    <h3>此刻干支黄历（真太阳时）</h3>
+    <div class="row">
+      <label>所在城市:</label>
+      <select id="citySel"><option value="">手动经度</option><option value="116.4">北京</option><option value="121.5">上海</option><option value="113.3">广州</option><option value="114.1">深圳</option><option value="120.2">杭州</option><option value="104.1">成都</option><option value="108.9">西安</option><option value="114.3">武汉</option><option value="106.5">重庆</option><option value="117.0">济南</option></select>
+      <label>经度:</label><input id="lngInput" type="number" step="0.1" value="116.4" style="width:80px">
+    </div>
+    <div class="readout" id="huangliRead" style="font-size:13px;line-height:1.7"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var C = window.LuoPanCore;
+  var svg = document.getElementById("luopan");
+  var NS = "http://www.w3.org/2000/svg";
+  var CX = 320, CY = 320;
+  var currentDeg = 0, mode = "mag";
+  var pointerLine = null;
+
+  // ---------- 画罗盘 ----------
+  function el(tag, attrs) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function pt(deg, r) {
+    var rad = (deg - 90) * Math.PI / 180;
+    return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
+  }
+
+  function draw() {
+    svg.innerHTML = "";
+    // 外圈
+    svg.appendChild(el("circle", { cx: CX, cy: CY, r: 305, fill: "#0f3460", stroke: "#f39c12", "stroke-width": 2 }));
+    svg.appendChild(el("circle", { cx: CX, cy: CY, r: 130, fill: "#16213e", stroke: "#533483" }));
+    // 二十四山（外圈）
+    C.SHAN24.forEach(function (s, i) {
+      var deg = i * 15;
+      var p1 = pt(deg, 265), p2 = pt(deg, 250);
+      var p3 = pt(deg, 285);
+      svg.appendChild(el("line", { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: "#aaa", "stroke-width": 1 }));
+      var t = el("text", { x: p3.x, y: p3.y, "font-size": 17, fill: "#eee", "text-anchor": "middle", "dominant-baseline": "middle" });
+      t.textContent = s;
+      svg.appendChild(t);
+    });
+    // 八卦（中圈）
+    C.BAGUA.forEach(function (b) {
+      var p = pt(b.deg, 218);
+      var t = el("text", { x: p.x, y: p.y, "font-size": 22, fill: "#f39c12", "text-anchor": "middle", "dominant-baseline": "middle" });
+      t.textContent = b.name;
+      svg.appendChild(t);
+    });
+    // 天干（内圈外侧）
+    C.GAN.forEach(function (g) {
+      var p = pt(g.deg, 178);
+      var t = el("text", { x: p.x, y: p.y, "font-size": 14, fill: "#1abc9c", "text-anchor": "middle", "dominant-baseline": "middle" });
+      t.textContent = g.name;
+      svg.appendChild(t);
+    });
+    // 地支（内圈）
+    C.ZHI.forEach(function (z, i) {
+      var p = pt(i * 30 + 15, 152);
+      var t = el("text", { x: p.x, y: p.y, "font-size": 15, fill: "#e67e22", "text-anchor": "middle", "dominant-baseline": "middle" });
+      t.textContent = z;
+      svg.appendChild(t);
+    });
+    svg.appendChild(el("circle", { cx: CX, cy: CY, r: 6, fill: "#e94560" }));
+    // 指针
+    pointerLine = el("line", { x1: CX, y1: CY, x2: CX, y2: CY - 290, stroke: "#e94560", "stroke-width": 4, "stroke-linecap": "round" });
+    svg.appendChild(pointerLine);
+    var tip = el("polygon", { points: (CX - 8) + "," + (CY - 300) + " " + (CX + 8) + "," + (CY - 300) + " " + CX + "," + (CY - 322), fill: "#e94560" });
+    svg.appendChild(tip);
+    svg.appendChild(el("line", { x1: CX, y1: CY, x2: CX, y2: CY + 40, stroke: "#fff", "stroke-width": 3 }));
+  }
+
+  // ---------- 高亮扇形 ----------
+  function addSector(degStart, span, color, label) {
+    var a1 = degStart - 90, a2 = degStart + span - 90;
+    var r1 = 140, r2 = 250;
+    function arcP(a, r) { var rad = a * Math.PI / 180; return CX + r * Math.cos(rad) + "," + (CY + r * Math.sin(rad)); }
+    var d = "M" + arcP(a1, r1) + " L" + arcP(a1, r2) + " A" + r2 + "," + r2 + " 0 0 1 " + arcP(a2, r2) +
+            " L" + arcP(a2, r1) + " A" + r1 + "," + r1 + " 0 0 0 " + arcP(a1, r1) + " Z";
+    var path = el("path", { d: d, fill: color, opacity: 0.35 });
+    svg.appendChild(path);
+    if (label) {
+      var p = pt(degStart + span / 2, 195);
+      var t = el("text", { x: p.x, y: p.y, "font-size": 11, fill: "#fff", "text-anchor": "middle", "dominant-baseline": "middle", "font-weight": "bold" });
+      t.textContent = label;
+      svg.appendChild(t);
+    }
+  }
+
+  function clearHighlights() {
+    var old = svg.querySelectorAll(".hl");
+    for (var i = 0; i < old.length; i++) old[i].remove();
+    var olds = svg.querySelectorAll("path.hl2");
+    for (var j = 0; j < olds.length; j++) olds[j].remove();
+  }
+
+  function renderHighlights() {
+    clearHighlights();
+    // 游年高亮
+    var y = parseInt(document.getElementById("byear").value) || 1985;
+    var g = document.getElementById("bgender").value;
+    var mg = mingGua(y, g);
+    document.getElementById("mingGuaRead").textContent = "命卦: " + mg.gua + "（" + mg.group + "）";
+    var legend = document.getElementById("younianLegend");
+    legend.innerHTML = "";
+    var table = C.younianTable(mg.gua);
+    if (table) {
+      table.forEach(function (r) {
+        addSector(r.deg - 22.5, 45, r.color, r.name);
+        var s = document.createElement("span");
+        s.innerHTML = '<span class="dot" style="background:' + r.color + '"></span>' + r.bagua + "·" + r.name;
+        legend.appendChild(s);
+      });
+    }
+    // 飞星高亮（五黄/二黑/八白/四绿）
+    var fy = parseInt(document.getElementById("fyear").value) || new Date().getFullYear();
+    var hl = C.flyingHighlights(fy);
+    var hint = document.getElementById("flyingHint");
+    hint.innerHTML = fy + "年 五黄[" + (hl.wu_huang ? hl.wu_huang.dir : "中") + "]禁动土 · 二黑[" + (hl.er_hei ? hl.er_hei.dir : "?") + "]防病 · 八白[" + (hl.ba_bai ? hl.ba_bai.dir : "?") + "]财位 · 四绿[" + (hl.si_lv ? hl.si_lv.dir : "?") + "]文昌";
+    [["wu_huang", "#e74c3c", "五黄"], ["er_hei", "#e67e22", "二黑"], ["ba_bai", "#f1c40f", "八白"], ["si_lv", "#2ecc71", "四绿"]].forEach(function (item) {
+      var pos = hl[item[0]];
+      if (pos && pos.deg !== undefined) addSector(pos.deg - 22.5, 45, item[1], item[2]);
+    });
+  }
+
+  // ---------- 命卦 ----------
+  function mingGua(year, gender) {
+    var sum = 0, s = String(year);
+    for (var i = 0; i < s.length; i++) sum += parseInt(s[i]);
+    var r = sum % 9;
+    var n;
+    if (gender === "male") { n = (11 - r) % 9; if (n === 0) n = 9; if (n === 5) n = 2; } // 男5→坤
+    else { n = (4 + r) % 9; if (n === 0) n = 9; if (n === 5) n = 8; } // 女5→艮
+    var map = { 1: "坎", 2: "坤", 3: "震", 4: "巽", 6: "乾", 7: "兑", 8: "艮", 9: "离" };
+    var gua = map[n];
+    var east = ["坎", "离", "震", "巽"].indexOf(gua) >= 0;
+    return { gua: gua, group: east ? "东四命" : "西四命" };
+  }
+
+  // ---------- 读数更新 ----------
+  var WX = { 子: "水", 癸: "水", 丑: "土", 艮: "土", 寅: "木", 甲: "木", 卯: "木", 乙: "木",
+             辰: "土", 巽: "木", 巳: "火", 丙: "火", 午: "火", 丁: "火", 未: "土", 坤: "土",
+             申: "金", 庚: "金", 酉: "金", 辛: "金", 戌: "土", 乾: "金", 亥: "水", 壬: "水" };
+
+  function updateCompass(rawDeg) {
+    var decl = parseFloat(document.getElementById("decl").value) || 0;
+    var deg = C.norm(rawDeg + decl);
+    currentDeg = deg;
+    if (pointerLine) pointerLine.setAttribute("transform", "rotate(" + deg + " " + CX + " " + CY + ")");
+    document.getElementById("degRead").textContent = deg.toFixed(1) + "°";
+    document.getElementById("dirRead").textContent = C.degToDirName(deg);
+    document.getElementById("zxRead").textContent = C.facingToZuoxiang(deg);
+    document.getElementById("shanRead").textContent = C.degToShan(deg);
+    document.getElementById("zhiRead").textContent = C.degToZhi(deg);
+    document.getElementById("guaRead").textContent = C.degToBagua(deg);
+    document.getElementById("ganRead").textContent = C.degToGan(deg);
+    document.getElementById("wxRead").textContent = WX[C.degToShan(deg)] || "-";
+  }
+
+  // ---------- 磁力计 ----------
+  function compassHeading(alpha, beta, gamma) {
+    var d2r = Math.PI / 180;
+    var x = Math.cos(alpha * d2r) * Math.sin(beta * d2r) * Math.sin(gamma * d2r) - Math.sin(alpha * d2r) * Math.cos(gamma * d2r);
+    var y = Math.cos(alpha * d2r) * Math.cos(beta * d2r);
+    var h = Math.atan2(x, y) / d2r;
+    if (h < 0) h += 360;
+    return 360 - h;
+  }
+  function onOrientation(e) {
+    if (mode !== "mag") return;
+    var h = null;
+    if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) h = e.webkitCompassHeading;
+    else if (e.alpha !== null) h = compassHeading(e.alpha, e.beta, e.gamma);
+    if (h !== null) updateCompass(h);
+  }
+  function startMag() {
+    var st = document.getElementById("status");
+    if (window.DeviceOrientationEvent) {
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        DeviceOrientationEvent.requestPermission().then(function (res) {
+          if (res === "granted") { window.addEventListener("deviceorientation", onOrientation); st.textContent = "磁力计已启动"; st.className = ""; }
+          else { st.textContent = "权限被拒，用手动模式"; st.className = "err"; }
+        });
+      } else {
+        window.addEventListener("deviceorientation", onOrientation);
+        st.textContent = "磁力计已启动（若无读数请确认 HTTPS + 授权）"; st.className = "";
+      }
+    } else {
+      st.textContent = "此设备无磁力计，请用手动模式"; st.className = "err";
+    }
+  }
+
+  // ---------- 模式切换 ----------
+  document.getElementById("btnMag").onclick = function () {
+    mode = "mag";
+    this.classList.add("active");
+    document.getElementById("btnMan").classList.remove("active");
+    startMag();
+  };
+  document.getElementById("btnMan").onclick = function () {
+    mode = "man";
+    this.classList.add("active");
+    document.getElementById("btnMag").classList.remove("active");
+    updateCompass(parseFloat(document.getElementById("manualDeg").value) || 0);
+  };
+  document.getElementById("manualDeg").oninput = function () {
+    if (mode === "man") updateCompass(parseFloat(this.value) || 0);
+  };
+  document.getElementById("decl").oninput = function () { updateCompass(currentDeg); };
+
+  // ---------- 绑定 ----------
+  ["byear", "bgender", "fyear"].forEach(function (id) {
+    document.getElementById(id).onchange = renderHighlights;
+  });
+
+  draw();
+  renderHighlights();
+  updateCompass(0);
+  startMag();
+
+  // ---------- 黄历/真太阳时 ----------
+  function eot(doy) {
+    var B = 360 / 365 * (doy - 81), rad = B * Math.PI / 180;
+    return 9.87 * Math.sin(2 * rad) - 7.53 * Math.cos(rad) - 1.5 * Math.sin(rad);
+  }
+  function trueSolar(now, lng) {
+    var utc = new Date(now.getTime() - 8 * 3600 * 1000);
+    var lm = new Date(utc.getTime() + 4 * 60 * 1000 * lng);
+    var start = new Date(now.getFullYear(), 0, 0);
+    var doy = Math.floor((now - start) / 86400000);
+    return new Date(lm.getTime() + eot(doy) * 60000);
+  }
+  function renderHuangli() {
+    var city = document.getElementById("citySel").value;
+    var lng = city ? parseFloat(city) : (parseFloat(document.getElementById("lngInput").value) || 116.4);
+    var now = new Date();
+    var tst = trueSolar(now, lng);
+    var h = tst.getHours() + tst.getMinutes() / 60;
+    var scNames = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+    var sc = scNames[Math.floor((h + 1) / 2) % 12];
+    var d = document.getElementById("huangliRead");
+    if (typeof Lunar === "undefined") { d.textContent = "农历库未加载（离线时需先联网一次）"; return; }
+    try {
+      var l = Lunar.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+      var ec = l.getEightChar();
+      var dTxt = "农历: " + l.toString().replace(/年/g, "年 ") +
+        "<br>四柱: 年" + ec.getYear() + " 月" + ec.getMonth() + " 日" + ec.getDay() + " 时(真太阳" + sc + ")";
+      var yy = l.getDayYi ? l.getDayYi().join(" ") : "";
+      var jj = l.getDayJi ? l.getDayJi().join(" ") : "";
+      dTxt += "<br>宜: " + (yy || "无") + "<br>忌: " + (jj || "无") +
+        "<br>冲煞: " + (l.getDayChongDesc ? l.getDayChongDesc() : "") +
+        " | 真太阳时: " + tst.getHours() + ":" + String(tst.getMinutes()).padStart(2, "0") +
+        "（钟表 " + now.getHours() + ":" + String(now.getMinutes()).padStart(2, "0") + "，经度" + lng + "）";
+      d.innerHTML = dTxt;
+    } catch (err) { d.textContent = "黄历计算错误: " + err.message; }
+  }
+  document.getElementById("citySel").onchange = renderHuangli;
+  document.getElementById("lngInput").onchange = renderHuangli;
+  renderHuangli();
+  setInterval(renderHuangli, 60000);
+
+  // ---------- Service Worker 注册（PWA 离线） ----------
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./pwa/sw.js").catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>

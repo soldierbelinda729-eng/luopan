@@ -1,0 +1,15 @@
+{
+  "name": "时空罗盘 · 二十四山指南针",
+  "short_name": "时空罗盘",
+  "description": "手机/电脑通用指南针罗盘：自动分判二十四山、十二地支、十天干、八卦分布；八宅游年吉凶方 + 玄空飞星高亮；干支黄历",
+  "start_url": "./luopan.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1a2e",
+  "theme_color": "#16213e",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
