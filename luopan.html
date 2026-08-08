@@ -116,6 +116,7 @@
       <input id="pcPort" type="number" value="8000" style="width:70px">
       <button id="btnSync">📤 一键同步</button>
       <button id="btnCopy">📋 复制报告文本</button>
+      <button id="btnCode">🔑 生成同步码</button>
     </div>
     <div class="hint" id="syncHint">手机与电脑连同一 WiFi；电脑先运行 <b>python sync_server.py</b>。HTTPS 页面（GitHub Pages）提交受浏览器限制时，用"复制报告文本"→ 微信发电脑。</div>
   </div>
@@ -454,6 +455,61 @@
     try { document.execCommand("copy"); done(); } catch (e) { prompt("手动复制以下报告：", txt); }
     document.body.removeChild(ta);
   }
+
+  // ---------- 生成同步码（紧凑 Base64，手机复制 → 电脑粘贴解码） ----------
+  document.getElementById("btnCode").onclick = function () {
+    var now = new Date();
+    var city = document.getElementById("citySel").value;
+    var lng = city ? parseFloat(city) : (parseFloat(document.getElementById("lngInput").value) || 116.4);
+    var y = parseInt(document.getElementById("byear").value) || 1985;
+    var g = document.getElementById("bgender").value;
+    var mg = mingGua(y, g);
+    var fy = parseInt(document.getElementById("fyear").value) || now.getFullYear();
+    var l = (typeof Lunar !== "undefined") ? Lunar.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate())) : null;
+    var ec = l ? l.getEightChar() : null;
+    var tst = trueSolar(now, lng);
+    var h = tst.getHours() + tst.getMinutes() / 60;
+    var scn = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+    var payload = {
+      v: 1,
+      t: now.toLocaleString("zh-CN"),
+      fd: Math.round(currentDeg * 10) / 10,
+      zx: C.facingToZuoxiang(currentDeg),
+      s24: C.degToShan(currentDeg),
+      zhi: C.degToZhi(currentDeg),
+      gua: C.degToBagua(currentDeg),
+      gan: C.degToGan(currentDeg),
+      mg: mg.gua, mgg: mg.group,
+      fy: fy,
+      lng: lng
+    };
+    if (ec) {
+      payload.gz = ec.getYear() + " " + ec.getMonth() + " " + ec.getDay() + " " + scn[Math.floor((h + 1) / 2) % 12];
+      payload.nl = l.toString();
+      payload.yi = l.getDayYi ? l.getDayYi().join(" ") : "";
+      payload.ji = l.getDayJi ? l.getDayJi().join(" ") : "";
+    }
+    var json = JSON.stringify(payload);
+    var code = "LP1:" + btoa(unescape(encodeURIComponent(json)));
+    var hint = document.getElementById("syncHint");
+    function copied() {
+      hint.innerHTML = "✅ 同步码已复制！到电脑粘贴给我（或粘贴到解码页 http://电脑IP:8000/）即可";
+      hint.style.color = "#2ecc71";
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(copied).catch(function () {
+        var ta = document.createElement("textarea");
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
+        document.body.removeChild(ta);
+      });
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = code; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
+      document.body.removeChild(ta);
+    }
+  };
 })();
 </script>
 </body>
