@@ -106,6 +106,19 @@
     </div>
     <div class="readout" id="huangliRead" style="font-size:13px;line-height:1.7"></div>
   </div>
+
+  <div class="panel">
+    <h3>📤 数据同步到电脑（手机测 → 电脑算）</h3>
+    <div class="row">
+      <label>电脑IP:</label>
+      <input id="pcIP" type="text" value="" placeholder="自动" style="width:130px">
+      <label>端口:</label>
+      <input id="pcPort" type="number" value="8000" style="width:70px">
+      <button id="btnSync">📤 一键同步</button>
+      <button id="btnCopy">📋 复制报告文本</button>
+    </div>
+    <div class="hint" id="syncHint">手机与电脑连同一 WiFi；电脑先运行 <b>python sync_server.py</b>。HTTPS 页面（GitHub Pages）提交受浏览器限制时，用"复制报告文本"→ 微信发电脑。</div>
+  </div>
 </div>
 
 <script>
@@ -365,6 +378,81 @@
   // ---------- Service Worker 注册（PWA 离线） ----------
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./pwa/sw.js").catch(function () {});
+  }
+
+  // ---------- 数据同步 ----------
+  function buildReport() {
+    var decl = parseFloat(document.getElementById("decl").value) || 0;
+    var now = new Date();
+    var city = document.getElementById("citySel").value;
+    var lng = city ? parseFloat(city) : (parseFloat(document.getElementById("lngInput").value) || 116.4);
+    var y = parseInt(document.getElementById("byear").value) || 1985;
+    var g = document.getElementById("bgender").value;
+    var mg = mingGua(y, g);
+    var fy = parseInt(document.getElementById("fyear").value) || now.getFullYear();
+    var hl = C.flyingHighlights(fy);
+    var l = (typeof Lunar !== "undefined") ? Lunar.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate())) : null;
+    var lines = ["【时空罗盘测量报告】",
+      "时间: " + now.toLocaleString("zh-CN"),
+      "朝向: " + currentDeg.toFixed(1) + "° " + C.degToDirName(currentDeg),
+      "坐向: " + C.facingToZuoxiang(currentDeg),
+      "二十四山: " + C.degToShan(currentDeg) + " | 地支: " + C.degToZhi(currentDeg) +
+        " | 八卦: " + C.degToBagua(currentDeg) + " | 天干: " + C.degToGan(currentDeg),
+      "命卦: " + mg.gua + "(" + mg.group + ")",
+      "飞星" + fy + ": 五黄=" + (hl.wu_huang ? hl.wu_huang.dir : "中") +
+        " 二黑=" + (hl.er_hei ? hl.er_hei.dir : "?") +
+        " 八白财=" + (hl.ba_bai ? hl.ba_bai.dir : "?") +
+        " 四绿文昌=" + (hl.si_lv ? hl.si_lv.dir : "?")];
+    if (l) {
+      var ec = l.getEightChar();
+      var tst = trueSolar(now, lng);
+      var h = tst.getHours() + tst.getMinutes() / 60;
+      var scn = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+      var sc = scn[Math.floor((h + 1) / 2) % 12];
+      lines.push("黄历: 农历" + l.toString() + " 四柱 " + ec.getYear() + " " + ec.getMonth() + " " + ec.getDay() + " 真太阳" + sc + "时",
+        "宜: " + (l.getDayYi ? l.getDayYi().join(" ") : "") + " | 忌: " + (l.getDayJi ? l.getDayJi().join(" ") : ""));
+    }
+    return lines.join("\n");
+  }
+  function syncToPC() {
+    var ip = document.getElementById("pcIP").value || location.hostname || "127.0.0.1";
+    var port = document.getElementById("pcPort").value || 8000;
+    var hint = document.getElementById("syncHint");
+    var rec = {
+      facing_deg: Math.round(currentDeg * 10) / 10,
+      direction: C.degToDirName(currentDeg),
+      zuoxiang: C.facingToZuoxiang(currentDeg),
+      shan24: C.degToShan(currentDeg),
+      zhi: C.degToZhi(currentDeg),
+      bagua: C.degToBagua(currentDeg),
+      gan: C.degToGan(currentDeg),
+      minggua: (function(){var m=mingGua(parseInt(document.getElementById("byear").value)||1985,document.getElementById("bgender").value);return m.gua+"("+m.group+")";})(),
+      report: buildReport()
+    };
+    fetch("http://" + ip + ":" + port + "/api/reading", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rec)
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      hint.innerHTML = "✅ 已同步到电脑（共 " + d.total + " 条记录），电脑端可直接分析";
+      hint.style.color = "#2ecc71";
+    }).catch(function () {
+      hint.innerHTML = "⚠️ 同步失败（HTTPS 页面限制/未连同一网络）。已生成报告——点「复制报告文本」发微信给电脑即可";
+      hint.style.color = "#e67e22";
+    });
+  }
+  document.getElementById("btnSync").onclick = syncToPC;
+  document.getElementById("btnCopy").onclick = function () {
+    var txt = buildReport();
+    function done() { document.getElementById("syncHint").innerHTML = "✅ 报告已复制，微信发给电脑即可"; document.getElementById("syncHint").style.color = "#2ecc71"; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done).catch(function () { fallbackCopy(txt); });
+    } else fallbackCopy(txt);
+  };
+  function fallbackCopy(txt) {
+    var ta = document.createElement("textarea");
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { prompt("手动复制以下报告：", txt); }
+    document.body.removeChild(ta);
   }
 })();
 </script>
