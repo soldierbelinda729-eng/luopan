@@ -46,6 +46,11 @@
   <h1>🧭 时空罗盘 · 二十四山指南针</h1>
   <p>手机磁力计自动测向 / 电脑手动输入 · 自动分判子丑寅卯·甲乙丙丁·八卦二十四山分布</p>
 </header>
+<div id="installBar" style="display:none;background:#e94560;color:#fff;padding:8px 12px;text-align:center;font-size:13px">
+  📲 <b id="installMsg">安装为 App</b>（图标放桌面 · 全屏 · 离线可用）
+  <button id="btnInstall" style="margin-left:8px;background:#fff;color:#e94560;border:none;border-radius:6px;padding:4px 12px;font-weight:bold;cursor:pointer">立即安装</button>
+  <button id="btnCloseInstall" style="margin-left:6px;background:transparent;color:#fff;border:1px solid #fff;border-radius:6px;padding:4px 8px;cursor:pointer">✕</button>
+</div>
 <div class="wrap">
   <div class="compass-box">
     <svg id="luopan" viewBox="0 0 640 640"></svg>
@@ -521,6 +526,39 @@
       try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
       document.body.removeChild(ta);
     }
+  };
+
+  // ---------- PWA 安装提示（安卓安装按钮 / iOS 添加到主屏幕） ----------
+  var deferredPrompt = null;
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  function showInstallBar(msg) {
+    if (isStandalone) return;
+    document.getElementById("installMsg").textContent = msg;
+    document.getElementById("installBar").style.display = "block";
+  }
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    showInstallBar("安装为 App");
+  });
+  if (isIOS && !isStandalone) {
+    showInstallBar("添加到主屏幕 = 安装 App（点下方"安装"，按提示操作）");
+  }
+  document.getElementById("btnInstall").onclick = function () {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function (r) {
+        if (r.outcome === "accepted") { document.getElementById("installBar").style.display = "none"; }
+      });
+    } else if (isIOS) {
+      alert("iOS 安装步骤：\n1. 点浏览器下方「分享」按钮（方框向上箭头）\n2. 选「添加到主屏幕」\n3. 点「添加」——桌面即出现 App 图标");
+    } else {
+      alert("请在浏览器菜单中选择「添加到主屏幕」或「安装应用」");
+    }
+  };
+  document.getElementById("btnCloseInstall").onclick = function () {
+    document.getElementById("installBar").style.display = "none";
   };
 
   // ---------- 粘贴码解码 ----------
