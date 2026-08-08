@@ -29,18 +29,34 @@ jobs:
           cd /tmp
           cordova create luopanapp com.mingli.luopan Luopan
           cd luopanapp
-          # 覆盖为最新罗盘资源
           cp -r "$GITHUB_WORKSPACE/apk-builder/www/." www/
           cp "$GITHUB_WORKSPACE/apk-builder/config.xml" ./
           mkdir -p res
           cp "$GITHUB_WORKSPACE/apk-builder/res/icon.png" res/
-          # 构建（debug 签名，可直接安装）
           cordova platform add android@13
-          cordova build android --debug
+          # 生成正式签名密钥（release 签名，安装更顺）
+          keytool -genkeypair -v -keystore luopan.keystore -alias luopan \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass mingli2026 -keypass mingli2026 \
+            -dname "CN=Luopan, OU=mingli, O=mingli, L=Beijing, ST=Beijing, C=CN" 2>/dev/null
+          cordova build android --release
+          # 定位签名工具并签名
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | tail -1)
+          ZALIGN=$(ls $ANDROID_HOME/build-tools/*/zipalign | tail -1)
+          UNSIGNED=platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          $ZALIGN -f 4 "$UNSIGNED" /tmp/aligned.apk
+          $APKSIGNER sign --ks luopan.keystore --ks-key-alias luopan \
+            --ks-pass pass:mingli2026 --key-pass pass:mingli2026 \
+            --out /tmp/时空罗盘.apk /tmp/aligned.apk
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp /tmp/时空罗盘.apk "$GITHUB_WORKSPACE/output/时空罗盘.apk"
+          cp luopan.keystore "$GITHUB_WORKSPACE/output/luopan.keystore"
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: luopan-apk
-          path: /tmp/luopanapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            output/时空罗盘.apk
+            output/luopan.keystore
           if-no-files-found: error
