@@ -510,21 +510,32 @@
     var code = "LP1:" + btoa(unescape(encodeURIComponent(json)));
     var hint = document.getElementById("syncHint");
     function copied() {
-      hint.innerHTML = "✅ 同步码已复制！到电脑粘贴给我（或粘贴到解码页 http://电脑IP:8000/）即可";
+      hint.innerHTML = "✅ 同步码已复制！粘贴到微信发给电脑 / 本对话即可——不用同一WiFi";
       hint.style.color = "#2ecc71";
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(code).then(copied).catch(function () {
+    // 优先系统分享（手机直接弹分享面板 → 微信/任意App），不支持则复制
+    if (navigator.share) {
+      navigator.share({ title: "时空罗盘同步码", text: code }).then(function () {
+        hint.innerHTML = "✅ 已分享！电脑收到后粘贴解码即可";
+        hint.style.color = "#2ecc71";
+      }).catch(function () { fallbackCopyCode(code); });
+    } else {
+      fallbackCopyCode(code);
+    }
+    function fallbackCopyCode(code) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(copied).catch(function () {
+          var ta = document.createElement("textarea");
+          ta.value = code; document.body.appendChild(ta); ta.select();
+          try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
+          document.body.removeChild(ta);
+        });
+      } else {
         var ta = document.createElement("textarea");
         ta.value = code; document.body.appendChild(ta); ta.select();
         try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
         document.body.removeChild(ta);
-      });
-    } else {
-      var ta = document.createElement("textarea");
-      ta.value = code; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); copied(); } catch (e) { prompt("手动复制同步码：", code); }
-      document.body.removeChild(ta);
+      }
     }
   };
 
